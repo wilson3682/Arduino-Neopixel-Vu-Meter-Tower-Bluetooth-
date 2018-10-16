@@ -1,7 +1,6 @@
 
 #include <Adafruit_NeoPixel.h>
 #include <FastLED.h>
-#include <Bounce2.h>
 #include "water_torture.h"
 
 #if FASTLED_VERSION < 3001000
@@ -35,10 +34,9 @@
 #define GRAVITY           -9.81              // Downward (negative) acceleration of gravity in m/s^2
 #define h0                1                  // Starting height, in meters, of the ball (strip length)
 
-
-#define BRIGHTNESS  45
+#define BRIGHTNESS  35
 #define LED_TYPE    WS2812B     // Only use the LED_PIN for WS2812's
-#define COLOR_ORDER RGB
+#define COLOR_ORDER RGB        
 #define COLOR_MIN           0
 #define COLOR_MAX         255
 #define DRAW_MAX          100
@@ -80,7 +78,6 @@ uint16_t loops = 0;                                                             
 bool     samplepeak = 0;                                                        // This sample is well above the average, and is a 'peak'.
 uint16_t oldsample = 0;                                                         // Previous sample is used for peak detection and for 'on the fly' values.
 bool thisdir = 0;
-//new ripple VU
 
 // Modes
 enum
@@ -89,7 +86,6 @@ enum
 bool reverse = true;
 int BRIGHTNESS_MAX = 255;
 int brightness = 75;
-
 
 byte
 //  peak      = 0,      // Used for falling dot
@@ -191,22 +187,11 @@ int buttonPushCounter = 0; // counter for the number of button presses
 //int buttonState = 0;         // current state of the button
 int lastButtonState = 0;
 
-
 byte peak = 16;      // Peak level of column; used for falling dots
 //    unsigned int sample;
 
 byte dotCount = 0;  //Frame counter for peak dot
 byte dotHangCount = 0; //Frame counter for holding peak dot
-
-//======================================================================================================================================
-//======================================================CODE ADDED FOR BLUETOOTH========================================================
-//======================================================================================================================================
-//---SERIAL SETUP STUFF
-#define SERIAL_BAUDRATE 9600
-#define SERIAL_TIMEOUT 5
-byte inbyte;                 //-SERIAL INPUT BYTE
-int thisarg;                 //-SERIAL INPUT ARG
-int ledMode = 0;           //-START MODE
 
 //---LED FX VARS
 int idex = 0;                //-LED INDEX (0 to LED_COUNT-1
@@ -217,45 +202,10 @@ int isat = 0;                //-SATURATION (0-255)
 //---Button Stuff
 char blue_data = 0;
 int buttonState = 28;
-Bounce debouncer = Bounce();
 
-
-void setup() {
-  delay(3000);
-  analogReference(EXTERNAL);
-  Serial.begin(SERIAL_BAUDRATE);      // SETUP HARDWARE SERIAL (USB)
-  Serial.setTimeout(SERIAL_TIMEOUT);
-  //  btSerial.begin(SERIAL_BAUDRATE);    // SETUP SOFTWARE SERIAL (BLUETOOTH)
-  //  btSerial.setTimeout(SERIAL_TIMEOUT);
-  Serial1.begin(SERIAL_BAUDRATE);    // SETUP SOFTWARE SERIAL (MEGA RX1 & TX1)
-  Serial1.setTimeout(SERIAL_TIMEOUT);
-
-  pinMode(buttonPin, INPUT_PULLUP);
-  //pinMode(buttonPin, INPUT);
-  //digitalWrite(buttonPin, HIGH);
-
-  FastLED.addLeds<LED_TYPE, LED_PIN, COLOR_ORDER>(leds, N_PIXELS).setCorrection(TypicalLEDStrip);
-  //FastLED.setBrightness(BRIGHTNESS);
-  //FastLED.setBrightness(max_bright);
-  dist = random16(12345);          // A semi-random number for our noise generator
-
-  for (int i = 0 ; i < NUM_BALLS ; i++) {    // Initialize variables
-    tLast[i] = millis();
-    h[i] = h0;
-    pos[i] = 0;                              // Balls start on the ground
-    vImpact[i] = vImpact0;                   // And "pop" up at vImpact0
-    tCycle[i] = 0;
-    COR[i] = 0.90 - float(i) / pow(NUM_BALLS, 2);
-  }
-
-  // After setting up the button, setup the Bounce instance :
-  debouncer.attach(buttonPin);
-  debouncer.interval(5); // interval in ms
-
-  FastLED.show();
-  strip.begin();
-  strip.show(); // all pixels to 'off'
-}
+int long time_pattern = 0;
+int long time_change = 0;
+int effect = 0;
 
 float fscale( float originalMin, float originalMax, float newBegin, float newEnd, float inputValue, float curve) {
   float OriginalRange = 0;
@@ -301,236 +251,318 @@ float fscale( float originalMin, float originalMax, float newBegin, float newEnd
   return rangedValue;
 }
 
-void loop() {
-  blueTooth_data();
+void setup() {
+  delay(3000);
+  analogReference(EXTERNAL);
+  Serial.begin(115200);      // SETUP HARDWARE SERIAL (USB)
+  // btSerial.begin(9600);    // SETUP SOFTWARE SERIAL (BLUETOOTH)
+  Serial1.begin(9600);    // SETUP SOFTWARE SERIAL (MEGA RX1 & TX1)
+  pinMode(buttonPin, INPUT_PULLUP);
+  //pinMode(buttonPin, INPUT);
+  //digitalWrite(buttonPin, HIGH);
 
-  buttonLoop();
-  //buttonLoop_1();
+  FastLED.addLeds<LED_TYPE, LED_PIN, COLOR_ORDER>(leds, N_PIXELS).setCorrection(TypicalLEDStrip);
 
+  for (int i = 0 ; i < NUM_BALLS ; i++) {    // Initialize variables
+    tLast[i] = millis();
+    h[i] = h0;
+    pos[i] = 0;                              // Balls start on the ground
+    vImpact[i] = vImpact0;                   // And "pop" up at vImpact0
+    tCycle[i] = 0;
+    COR[i] = 0.90 - float(i) / pow(NUM_BALLS, 2);
+  }
+
+  FastLED.show();
+  strip.begin();
+  //strip.show(); // all pixels to 'off'
 }
 
-//=============================================================================================================================================
-//================================================================START OF SERIAL COMMANDS=====================================================
-//=============================================================================================================================================
-
-void  blueTooth_data() {
-  //---PROCESS SOFTWARE SERIAL COMMANDS AND ARGS ARDUINO MEGA ONLY PINS RX1 & TX1
-  if (Serial1.available() > 0) {
-    inbyte = Serial1.read();
-    //if (Serial1.overflow()){Serial.println("SoftwareSerial overflow!");}
-    switch (inbyte) {
-      //case 59: break; //---BREAK IF INBYTE = ';'
+void loop() { 
+  buttonLoop();
+  while (Serial1.available() > 0) {
+    //inbyte = Serial1.read();
+    blue_data = Serial1.read();
+    blueTooth();     
+    switch (blue_data) {
       case 98:      //---"b" - SET MAX BRIGHTNESS
         max_bright = Serial1.parseInt();
         FastLED.setBrightness(max_bright);
         break;
-      case 109:      //---"m" - SET MODE
-        thisarg = Serial1.parseInt();
-        change_mode(thisarg);
-        break;
-        //      case 99:      //---"c" - CLEAR STRIP
-        //        one_color_all(0, 0, 0);
-        //        break;
-        //      case 122:      //---"z" - COMMAND TO 'SHOW' LEDS
-        //        FastLED.show();
-        //        break;
     }
   }
-  switch (ledMode) {
-    //case 999: break;
-    //case 0: colorWipe(strip.Color(0, 0, 0)); break; //---ALL OFF
-    //case 0: one_color_all(0, 0, 0);break; //---ALL OFF
-    case 1: one_color_all(255, 255, 255); break; //---ALL ON
-    case 36: All2(); break;
-    case 37: All(); break;
-    case 10: VU(); strip.show(); break; //buttonPushCounter == 3; //break;
-    case 11: VU1(); strip.show(); break; //buttonPushCounter == 4;//break;
-    case 12: VU2(); strip.show(); break; // buttonPushCounter == 5;//break;//break;
-    case 13: VU3(); strip.show(); break; //buttonPushCounter == 6;//break;//break;
-    case 14: VU4(); strip.show(); break; //buttonPushCounter == 7;//break;//break;
-    case 15: VU5(); strip.show(); break; //buttonPushCounter == 8;//break;//break; buttonPushCounter == 8;
-    case 16: VU6(); strip.show(); break; //buttonPushCounter == 9;//
-    case 17: VU7(); strip.show(); break; //buttonPushCounter == 10;//
-    case 18: VU8(); strip.show(); break; //buttonPushCounter == 11;//
-    case 19: VU9(); strip.show(); break; //buttonPushCounter == 12;//
-    case 20: VU10(); strip.show(); break; //buttonPushCounter == 13;//
-    case 21: VU11(); strip.show(); break; //buttonPushCounter == 14;//
-    case 22: VU12(); strip.show(); break; //buttonPushCounter == 15;//
-    case 23: VU13(); strip.show(); break; //buttonPushCounter == 16;//
-    case 24: ripple(); break; //buttonPushCounter == 17;//
-    case 25: ripple2(); break; //buttonPushCounter == 18;//
-    case 26: Twinkle();  break; //buttonPushCounter == 19;//
-    case 27: pattern2();  break; //buttonPushCounter == 20;//
-    case 28: juggle2(); break; //buttonPushCounter == 21;//
-    case 29: pattern3();  break; //buttonPushCounter == 22;//
-    case 30: blur(); break;  //buttonPushCounter == 23;//
-    case 31: Balls();  break; // buttonPushCounter == 24; //
-    case 32: Drip(); break; //buttonPushCounter == 25; //
-    case 33: fireblu(); break; //buttonPushCounter == 26; //
-    case 34: fire(); break; //buttonPushCounter == 27; //
-    //case 35: rainbow(20); // break;buttonPushCounter == 28; //
-    //case 35: rainbow_fade(); break;
-    case 35: rainbow_rotate(); break;
-
-    case 38: colorWipe(strip.Color(0, 0, 0)); //buttonPushCounter == 29; // // Black
-      //case 38: one_color_all(0, 0, 0); break; //---ALL OFF
-  }
 }
 
-void change_mode(int newmode) {
-  switch (newmode) {
-    // case 0: one_color_all(0, 0, 0); FastLED.show(); break; //---ALL OFF
-    case 0: colorWipe(strip.Color(0, 0, 0)); FastLED.show(); break; //---ALL OFF
-    case 1: one_color_all(255, 255, 255); FastLED.show(); break; //---ALL ON
-    case  36: buttonState = 0;//All2(); break;
-    case  37: buttonState = 1;//All(); break;
-    case 10: buttonState = 2;//VU(); strip.show(); break; //buttonPushCounter == 3; //break;
-    case 11: buttonState = 3;//VU1(); strip.show(); break; //buttonPushCounter == 4;//break;
-    case 12: buttonState = 4;//VU2(); strip.show(); break; // buttonPushCounter == 5;//break;//break;
-    case 13: buttonState = 5;//VU3(); strip.show(); break; //buttonPushCounter == 6;//break;//break;
-    case 14: buttonState = 6;//VU4(); strip.show(); break; //buttonPushCounter == 7;//break;//break;
-    case 15: buttonState = 7;//VU5(); strip.show(); break; //buttonPushCounter == 8;//break;//break; buttonPushCounter == 8;
-    case 16: buttonState = 8;//VU6(); strip.show(); break; //buttonPushCounter == 9;//
-    case 17: buttonState = 9;//VU7(); strip.show(); break; //buttonPushCounter == 10;//
-    case 18: buttonState = 10;//VU8(); strip.show(); break; //buttonPushCounter == 11;//
-    case 19: buttonState = 11;//VU9(); strip.show(); break; //buttonPushCounter == 12;//
-    case 20: buttonState = 12;//VU10(); strip.show(); break; //buttonPushCounter == 13;//
-    case 21: buttonState = 13;//VU11(); strip.show(); break; //buttonPushCounter = 14;//
-    case 22: buttonState = 14;//VU12(); strip.show(); break; //buttonPushCounter == 15;//
-    case 23: buttonState = 15;//VU13(); strip.show(); break; //buttonPushCounter == 16;//
-    case 24: buttonState = 16;//ripple(); strip.show(); break; //buttonPushCounter == 17;//
-    case 25: buttonState = 17;//ripple2(); strip.show(); break; //buttonPushCounter == 18;//
-    case 26: buttonState = 18;//Twinkle(); strip.show(); break; //buttonPushCounter == 19;//
-    case 27: buttonState = 19;//pattern2(); strip.show(); break; //buttonPushCounter == 20;//
-    case 28: buttonState = 20;//juggle2(); strip.show(); break; //buttonPushCounter == 21;//
-    case 29: buttonState = 21;//pattern3(); strip.show(); break; //buttonPushCounter == 22;//
-    case 30: buttonState = 22;//blur(); strip.show(); break;  //buttonPushCounter == 23;//
-    case 31: buttonState = 23;//Balls(); strip.show(); break; // buttonPushCounter == 24; //
-    case 32: buttonState = 24;//Drip(); strip.show(); break; //buttonPushCounter == 25; //
-    case 33: buttonState = 25;//fireblu(); strip.show(); break; //buttonPushCounter == 26; //
-    case 34: buttonState = 26;//fire(); strip.show(); break; //buttonPushCounter == 27; //
-    case 35: buttonState = 27;//rainbow(20); strip.show(); // break;buttonPushCounter == 28; //
-    case 38: buttonState = 28;//colorWipe(strip.Color(0, 0, 0), 10); //buttonPushCounter == 29; // // Black
-  }
-  one_color_all(0, 0, 0);
-  ledMode = newmode;
-}
-//=============================================================================================================================================
-//==============================================================END OF SERIAL COMMANDS=========================================================
-//=============================================================================================================================================
+////=============================================================================================================================================
+////==============================================================Start Button and Bluetooth Loop==============================================================
+////=============================================================================================================================================
 
-//=============================================================================================================================================
-//==============================================================Start Button Loop==============================================================
-//=============================================================================================================================================
 void buttonLoop() {
-  debouncer.update();
-  if (debouncer.fell()) {
-    if (buttonState < 28) {
-      buttonState = buttonState + 1;
-    } else {
-      buttonState = 0;
+  //read the pushbutton input pin:
+  buttonState = digitalRead(buttonPin);
+  //compare the buttonState to its previous state
+  if (buttonState != lastButtonState) {
+    // if the state has changed, increment the counter
+    if (buttonState == HIGH) {
+      // if the current state is HIGH then the button
+      // wend from off to on:
+      buttonPushCounter++;
+      Serial.println("on");
+      Serial.print("number of button pushes:  ");
+      Serial.println(buttonPushCounter);
+      if (buttonPushCounter == 30) {
+        buttonPushCounter = 1;
+      }
     }
+    //    else {
+    //      // if the current state is LOW then the button
+    //      // wend from on to off:
+    //      Serial.println("off");
+    //    }
   }
-  else {
-    buttonState != buttonState;
+  // save the current state as the last state,
+  //for next time through the loop
+  lastButtonState = buttonState;
+
+  switch (buttonPushCounter) {
+    case 1:
+      buttonPushCounter == 1; {
+        All2();
+        break;
+      }
+    case 2:
+      buttonPushCounter == 2; {
+        All();
+        break;
+      }
+    case 3:
+      buttonPushCounter == 3; {
+        VU(); // NORMAL
+        break;
+      }
+    case 4:
+      buttonPushCounter == 4; {
+        VU1(); // Centre out
+        break;
+      }
+    case 5:
+      buttonPushCounter == 5; {
+        VU2(); // Centre Inwards
+        break;
+      }
+    case 6:
+      buttonPushCounter == 6; {
+        VU3(); // Normal Rainbow
+        break;
+      }
+    case 7:
+      buttonPushCounter == 7; {
+        VU4(); // Centre rainbow
+        break;
+      }
+    case 8:
+      buttonPushCounter == 8; {
+        VU5(); // Shooting Star
+        break;
+      }
+    case 9:
+      buttonPushCounter == 9; {
+        VU6(); // Falling star
+        break;
+      }
+    case 10:
+      buttonPushCounter == 10; {
+        VU7(); // Ripple with background
+        break;
+      }
+    case 11:
+      buttonPushCounter == 11; {
+        VU8(); // Shatter
+        break;
+      }
+    case 12:
+      buttonPushCounter == 12; {
+        VU9(); // Pulse
+        break;
+      }
+    case 13:
+      buttonPushCounter == 13; {
+        VU10(); // stream
+        break;
+      }
+    case 14:
+      buttonPushCounter == 14; {
+        VU11(); // Ripple without Background
+        break;
+      }
+    case 15:
+      buttonPushCounter == 15; {
+        VU12(); // Ripple without Background
+        break;
+      }
+    case 16:
+      buttonPushCounter == 16; {
+        VU13(); // Ripple without Background
+        break;
+      }
+    case 17:
+      buttonPushCounter == 17; {
+        ripple();
+        break;
+      }
+    case 18:
+      buttonPushCounter == 18; {
+        ripple2();
+        break;
+      }
+    case 19:
+      buttonPushCounter == 19; {
+        Twinkle();
+        break;
+      }
+    case 20:
+      buttonPushCounter == 20; {
+        pattern2(); // sylon
+        break;
+      }
+    case 21:
+      buttonPushCounter == 21; {
+        juggle2();
+        break;
+      }
+    case 22:
+      buttonPushCounter == 22; {
+        pattern3();
+        break;
+      }
+    case 23:
+      buttonPushCounter == 23; {
+        blur();
+        break;
+      }
+    case 24:
+      buttonPushCounter == 24; {
+        Balls(); //
+        break;
+      }
+    case 25:
+      buttonPushCounter == 25; {
+        Drip(); //
+        break;
+      }
+    case 26:
+      buttonPushCounter == 26; {
+        fireblu();
+        break;
+      }
+    case 27:
+      buttonPushCounter == 27; {
+        fire();
+        break;
+      }
+    case 28:
+      buttonPushCounter == 28; {
+        rainbow_rotate();
+        //rainbow(20);
+        break;
+      }
+    case 29:
+      buttonPushCounter == 29; {
+        colorWipe(strip.Color(0, 0, 0)); // Black
+        break;
+      }
   }
-  buttonMenu();
 }
 
-void buttonMenu() {
-  if (buttonState == 0) {
-    All2();
+void blueTooth() {
+  if (blue_data == 36) {
+    buttonPushCounter = 1;  //All2
   }
-  if (buttonState == 1) {
-    All();
+  else if (blue_data == 37) { //All
+    buttonPushCounter = 2;
   }
-  if (buttonState == 2) {
-    VU();
+  if (blue_data == 10) { //VU
+    buttonPushCounter = 3;
   }
-  if (buttonState == 3) {
-    VU1();
+  if (blue_data == 11) { //VU1
+    buttonPushCounter = 4;
   }
-  if (buttonState == 4) {
-    VU2();
+  if (blue_data == 12) {  //VU2
+    buttonPushCounter = 5;
   }
-  if (buttonState == 5) {
-    VU3();
+  if (blue_data == 13) {  //VU3
+    buttonPushCounter = 6;
   }
-  if (buttonState == 6) {
-    VU4();
+  if (blue_data == 14) {  //VU4
+    buttonPushCounter = 7;
   }
-  if (buttonState == 7) {
-    VU5();
+  if (blue_data == 15) {  //VU5
+    buttonPushCounter = 8;
   }
-  if (buttonState == 8) {
-    VU6();
+  if (blue_data == 16) {  //VU6
+    buttonPushCounter = 9;
   }
-  if (buttonState == 9) {
-    VU7();
+  if (blue_data == 17) {  //VU7
+    buttonPushCounter = 10;
   }
-  if (buttonState == 10) {
-    VU8();
+  if (blue_data == 18) {  //VU8
+    buttonPushCounter = 11;
   }
-  if (buttonState == 11) {
-    VU9();
+  if (blue_data == 19) {  //VU9
+    buttonPushCounter = 12;
   }
-  if (buttonState == 12) {
-    VU10();
+  if (blue_data == 20) {  //VU10
+    buttonPushCounter = 13;
   }
-  if (buttonState == 13) {
-    VU11();
+  if (blue_data == 21) {  //VU11
+    buttonPushCounter = 14;
   }
-  if (buttonState == 14) {
-    VU12();
+  if (blue_data == 22) {   //V12
+    buttonPushCounter = 15;
   }
-  if (buttonState == 15) {
-    VU13();
+  if (blue_data == 23) {  //VU13
+    buttonPushCounter = 16;
   }
-  if (buttonState == 16) {
-    ripple();
+  if (blue_data == 24) {
+    buttonPushCounter = 17;
   }
-  if (buttonState == 17) {
-    ripple2();
+  if (blue_data == 25) {
+    buttonPushCounter = 18;
   }
-  if (buttonState == 18) {
-    Twinkle();
+  if (blue_data == 26) {
+    buttonPushCounter = 19;
   }
-  if (buttonState == 19) {
-    pattern2();
+  if (blue_data == 27) {
+    buttonPushCounter = 20;
   }
-  if (buttonState == 20) {
-    juggle2();
+  if (blue_data == 28) {
+    buttonPushCounter = 21;
   }
-  if (buttonState == 21) {
-    pattern3();
+  if (blue_data == 29) {
+    buttonPushCounter = 22;
   }
-  if (buttonState == 22) {
-    blur();
+  if (blue_data == 30) {
+    buttonPushCounter = 23;
   }
-  if (buttonState == 23) {
-    Balls();
+  if (blue_data == 31) {
+    buttonPushCounter = 24;
   }
-  if (buttonState == 24) {
-    Drip();
+  if (blue_data == 32) {
+    buttonPushCounter = 25;
   }
-  if (buttonState == 25) {
-    //fireblu();
-    rainbow(15);
+  if (blue_data == 33) {
+    buttonPushCounter = 26;
   }
-  if (buttonState == 26) {
-    fire();
+  if (blue_data == 34) {
+    buttonPushCounter = 27;
   }
-  if (buttonState == 27) {
-    // rainbow(15);
-    fireblu();
+  if (blue_data == 35) {
+    buttonPushCounter = 28;
   }
-  if (buttonState == 28) {
-    //one_color_all(0, 0, 0);
-    //colorWipe(strip.Color(0, 0, 0), 10); //FastLED.show();// Black
+  if (blue_data == 38) {
+    buttonPushCounter = 29;
   }
 }
 
-//======================================================Button Loop End===================================================================
 //========================================================================================================================================
 //======================================================END BUTTON CODE===================================================================
 //========================================================================================================================================
@@ -548,7 +580,6 @@ void one_color_allHSV(int ahue) {    //-SET ALL LEDS TO ONE COLOR (HSV)
     leds[i] = CHSV(ahue, thissat, 255);
   }
 }
-
 
 void colorWipe(uint32_t c) {
   // void colorWipe(uint32_t c, uint8_t wait) {
@@ -1415,7 +1446,7 @@ void soundrip() {                                            // Rolling average 
   samplesum = samplesum + sample - samplearray[samplecount];  // Add the new sample and remove the oldest sample in the array
   sampleavg = samplesum / NSAMPLES;                           // Get an average
 
-  Serial.println(sampleavg);
+  //Serial.println(sampleavg);
 
 
   samplearray[samplecount] = sample;                          // Update oldest sample in the array with new sample
@@ -1523,7 +1554,7 @@ void soundripped() {                                            // Rolling avera
   samplesum = samplesum + sample - samplearray[samplecount];  // Add the new sample and remove the oldest sample in the array
   sampleavg = samplesum / NSAMPLES;                           // Get an average
 
-  Serial.println(sampleavg);
+  //Serial.println(sampleavg);
 
 
   samplearray[samplecount] = sample;                          // Update oldest sample in the array with new sample
@@ -1600,7 +1631,7 @@ void soundripper() {                                            // Rolling avera
   samplesum = samplesum + sample - samplearray[samplecount];  // Add the new sample and remove the oldest sample in the array
   sampleavg = samplesum / NSAMPLES;                           // Get an average
 
-  Serial.println(sampleavg);
+  //Serial.println(sampleavg);
 
 
   samplearray[samplecount] = sample;                          // Update oldest sample in the array with new sample
@@ -1661,8 +1692,6 @@ void Balls() {
   }
 }
 
-
-
 // Slightly different, this makes the rainbow equally distributed throughout
 void rainbowCycle(uint8_t wait) {
   uint16_t i, j;
@@ -1678,8 +1707,6 @@ void rainbowCycle(uint8_t wait) {
     delay(wait);
   }
 }
-
-
 
 void ripple() {
 
@@ -1707,7 +1734,7 @@ void ripple() {
   }
   else {
     if (step < maxSteps) {
-      Serial.println(pow(fadeRate, step));
+      // Serial.println(pow(fadeRate, step));
 
       leds[wrap(center + step)] = CHSV(color, 255, pow(fadeRate, step) * 255);     //   strip.setPixelColor(wrap(center + step), Wheel(color, pow(fadeRate, step)));
       leds[wrap(center - step)] = CHSV(color, 255, pow(fadeRate, step) * 255);     //   strip.setPixelColor(wrap(center - step), Wheel(color, pow(fadeRate, step)));
@@ -1740,7 +1767,6 @@ void one_color_allHSV(int ahue, int abright) {                // SET ALL LEDS TO
   }
 }
 
-
 void ripple2() {
   if (BG) {
     if (currentBg == nextBg) {
@@ -1760,14 +1786,11 @@ void ripple2() {
     }
   }
 
-
   if (step == -1) {
     center = random(N_PIXELS);
     color = random(256);
     step = 0;
   }
-
-
 
   if (step == 0) {
     strip.setPixelColor(center, Wheel(color, 1));
@@ -1795,7 +1818,6 @@ void ripple2() {
 void fire() {
 #define FRAMES_PER_SECOND 40
   random16_add_entropy( random());
-
 
   // Array of temperature readings at each simulation cell
   static byte heat[N_PIXELS];
@@ -1834,11 +1856,9 @@ void fire() {
   FastLED.show();
 }
 
-
 void fireblu() {
 #define FRAMES_PER_SECOND 40
   random16_add_entropy( random());
-
 
   // Array of temperature readings at each simulation cell
   static byte heat[N_PIXELS];
@@ -1877,7 +1897,6 @@ void fireblu() {
   FastLED.show();
 }
 
-
 void Drip()
 {
 MODE_WATER_TORTURE:
@@ -1888,10 +1907,8 @@ MODE_WATER_TORTURE:
     strip.setBrightness(max_bright);
     strip.show();
     //strip.setBrightness(brightness); // back to limited
-
   }
 }
-
 
 bool cycle()
 {
@@ -1908,11 +1925,9 @@ bool cycle()
   return false;
 }
 
-
 // Input a value 0 to 255 to get a color value.
 // The colours are a transition r - g - b - back to r.
 uint32_t Wheel(byte WheelPos, float opacity) {
-
   if (WheelPos < 85) {
     return strip.Color((WheelPos * 3) * opacity, (255 - WheelPos * 3) * opacity, 0);
   }
@@ -1926,9 +1941,7 @@ uint32_t Wheel(byte WheelPos, float opacity) {
   }
 }
 
-
 void pattern2() {
-
   sinelon();                                                  // Call our sequence.
   show_at_max_brightness_for_power();                         // Power managed display of LED's.
 } // loop()
@@ -1941,13 +1954,13 @@ void sinelon() {
   int pos2 = beatsin16(thatbeat, 0, N_PIXELS - 1);
   leds[(pos1 + pos2) / 2] += CHSV( myhue++ / 64, thissat, thisbri);
 }
+
 // Pattern 3 - JUGGLE
 void pattern3() {
   ChangeMe();
   juggle();
   show_at_max_brightness_for_power();                         // Power managed display of LED's.
 } // loop()
-
 
 void juggle() {                                               // Several colored dots, weaving in and out of sync with each other
   curhue = thishue;                                          // Reset the hue values.
@@ -1957,7 +1970,6 @@ void juggle() {                                               // Several colored
     curhue += hueinc;
   }
 } // juggle()
-
 
 void ChangeMe() {                                             // A time (rather than loop) based demo sequencer. This gives us full control over the length of each sequence.
   uint8_t secondHand = (millis() / 1000) % 30;                // IMPORTANT!!! Change '30' to a different value to change duration of the loop.
@@ -1980,8 +1992,7 @@ void ChangeMe() {                                             // A time (rather 
   }
 } // ChangeMe()
 
-void juggle2() {                                               // Several colored dots, weaving in and out of sync with each other
-
+void juggle2() {                            // Several colored dots, weaving in and out of sync with each other
   // eight colored dots, weaving in and out of sync with each other
   fadeToBlackBy( leds, N_PIXELS, 20);
   byte dothue = 0;
@@ -1991,18 +2002,12 @@ void juggle2() {                                               // Several colore
   }
   FastLED.show();
 
-
 }
 void addGlitter( fract8 chanceOfGlitter) {                                      // Let's add some glitter, thanks to Mark
-
   if ( random8() < chanceOfGlitter) {
     leds[random16(N_PIXELS)] += CRGB::White;
   }
-
 } // addGlitter()
-
-
-
 
 void Twinkle() {
   if (random(25) == 1) {
@@ -2043,11 +2048,9 @@ void Twinkle() {
   strip.setBrightness(max_bright);
   strip.show();
   delay(10);
-
 }
 
 void blur() {
-
   uint8_t blurAmount = dim8_raw( beatsin8(3, 64, 192) );      // A sinewave at 3 Hz with values ranging from 64 to 192.
   blur1d( leds, N_PIXELS, blurAmount);                        // Apply some blurring to whatever's already on the strip, which will eventually go black.
 
@@ -2061,9 +2064,7 @@ void blur() {
   leds[(j + k) / 2] = CHSV( ms / 41, 200, 255);
   leds[(k + i) / 2] = CHSV( ms / 73, 200, 255);
   leds[(k + i + j) / 3] = CHSV( ms / 53, 200, 255);
-
   FastLED.show();
-
 } // loop()
 
 void rainbow(uint8_t wait) {
@@ -2141,4 +2142,122 @@ void All2()
   }
 }
 
+void demo_modeB() {
+  int r = 10;
+  //one_color_all(0, 0, 0); FastLED.show();
+  colorWipe(strip.Color(0, 0, 0));
+  thisdelay = 15;
+  //thisdelay = 5;
+  for (int i = 0; i < r * 120; i++) {
+    rainbow_rotate();
+  }
+  for (int i = 0; i < r * 25; i++) {
+    ripple();
+  }
+  for (int i = 0; i < r * 25; i++) {
+    ripple2();
+  }
+  for (int i = 0; i < r * 25; i++) {
+    Twinkle();
+  }
+  for (int i = 0; i < r * 35; i++) {
+    pattern2();
+  }
+  for (int i = 0; i < r * 25; i++) {
+    juggle2();
+  }
+  for (int i = 0; i < r * 35; i++) {
+    pattern3();
+  }
+  for (int i = 0; i < r * 35; i++) {
+    blur();
+  }
+  for (int i = 0; i < r * 35; i++) {
+    Balls();
+  }
+  for (int i = 0; i < r * 45; i++) {
+    Drip();
+  }
+  for (int i = 0; i < r * 40; i++) {
+    fireblu();
+  }
+  for (int i = 0; i < r * 50; i++) {
+    fire();
+  }
+  //one_color_all(0, 0, 0); FastLED.show();
+  colorWipe(strip.Color(0, 0, 0));
+}
 
+void demo_modeC() {
+
+  if (millis() - time_change > 12000) {   //code that establishes how often to change effect
+    effect++;
+    if (effect > 7) {
+      effect = 0;
+    }
+    time_change = millis();
+  }
+
+  switch (effect) {
+    case 0:
+      ripple();
+      break;
+
+    case 1:
+      if (millis() - time_pattern > 15) {
+        ripple2();
+        time_pattern = millis();
+      }
+
+      break;
+
+    case 2:
+      if (millis() - time_pattern > 15) {
+        Twinkle();
+        time_pattern = millis();
+      }
+      break;
+
+    case 3:
+      if (millis() - time_pattern > 15) {
+        pattern2();
+        time_pattern = millis();
+      }
+
+      break;
+
+    case 4:
+      if (millis() - time_pattern > 15) {
+        juggle2();
+        time_pattern = millis();
+      }
+      break;
+    case 5:
+      if (millis() - time_pattern > 15) {
+        pattern3();
+        time_pattern = millis();
+      }
+      break;
+    case 6:
+      if (millis() - time_pattern > 15) {
+        blur();
+        time_pattern = millis();
+      }
+
+      break;
+
+    case 7:
+      if (millis() - time_pattern > 15) {
+        Drip();
+        time_pattern = millis();
+      }
+    case 8:
+      if (millis() - time_pattern > 15) {
+        fireblu();
+        time_pattern = millis();
+      }
+    case 9:
+      fire();
+      break;
+  }
+}
