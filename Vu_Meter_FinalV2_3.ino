@@ -36,7 +36,7 @@
 
 #define BRIGHTNESS  35
 #define LED_TYPE    WS2812B     // Only use the LED_PIN for WS2812's
-#define COLOR_ORDER RGB        
+#define COLOR_ORDER GRB        
 #define COLOR_MIN           0
 #define COLOR_MAX         255
 #define DRAW_MAX          100
@@ -46,10 +46,9 @@
 #define qsuba(x, b)  ((x>b)?x-b:0)                                              // Analog Unsigned subtraction macro. if result <0, then => 0. By Andrew Tuline.
 #define ARRAY_SIZE(A) (sizeof(A) / sizeof((A)[0]))
 
-//#define buttonPin 3
-const int buttonPin = 3;     // the number of the pushbutton pin
-//config for balls
+const int buttonPin = 4;     // the number of the pushbutton pin
 
+//config for balls
 float h[NUM_BALLS] ;                         // An array of heights
 float vImpact0 = sqrt( -2 * GRAVITY * h0 );  // Impact velocity of the ball when it hits the ground if "dropped" from the top of the strip
 float vImpact[NUM_BALLS] ;                   // As time goes on the impact velocity will change, so make an array to store those values
@@ -60,7 +59,7 @@ float COR[NUM_BALLS] ;                       // Coefficient of Restitution (boun
 
 struct CRGB leds[N_PIXELS];
 
-Adafruit_NeoPixel strip = Adafruit_NeoPixel(N_PIXELS, LED_PIN, NEO_RGB + NEO_KHZ800);
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(N_PIXELS, LED_PIN, NEO_GRB + NEO_KHZ800);
 
 static uint16_t dist;         // A random number for noise generator.
 uint16_t scale = 30;          // Wouldn't recommend changing this on the fly, or the animation will be really blocky.
@@ -258,8 +257,6 @@ void setup() {
   // btSerial.begin(9600);    // SETUP SOFTWARE SERIAL (BLUETOOTH)
   Serial1.begin(9600);    // SETUP SOFTWARE SERIAL (MEGA RX1 & TX1)
   pinMode(buttonPin, INPUT_PULLUP);
-  //pinMode(buttonPin, INPUT);
-  //digitalWrite(buttonPin, HIGH);
 
   FastLED.addLeds<LED_TYPE, LED_PIN, COLOR_ORDER>(leds, N_PIXELS).setCorrection(TypicalLEDStrip);
 
