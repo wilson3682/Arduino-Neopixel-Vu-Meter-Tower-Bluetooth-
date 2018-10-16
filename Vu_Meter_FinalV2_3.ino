@@ -79,28 +79,27 @@ uint16_t oldsample = 0;                                                         
 bool thisdir = 0;
 
 // Modes
-enum
-{
+enum{
 } MODE;
+
 bool reverse = true;
 int BRIGHTNESS_MAX = 255;
 int brightness = 75;
 
-byte
-//  peak      = 0,      // Used for falling dot
-//  dotCount  = 0,      // Frame counter for delaying dot-falling speed
-volCount  = 0;      // Frame counter for storing past volume data
+byte volCount  = 0;      // Frame counter for storing past volume data
+
 int
 reading,
 vol[SAMPLES],       // Collection of prior volume samples
 lvl       = 10,      // Current "dampened" audio level
 minLvlAvg = 0,      // For dynamic adjustment of graph low & high
 maxLvlAvg = 512;
+
 float
 greenOffset = 30,
 blueOffset = 150;
-// cycle variables
 
+// cycle variables
 int CYCLE_MIN_MILLIS = 2;
 int CYCLE_MAX_MILLIS = 1000;
 int cycleMillis = 20;
@@ -109,6 +108,7 @@ long lastTime = 0;
 bool boring = true;
 bool gReverseDirection = false;
 int          myhue =   0;
+
 //VU ripple
 uint8_t colour;
 uint8_t myfade = 255;                                         // Starting brightness.
@@ -177,18 +177,13 @@ fall_from_left = true;
 //background color
 uint32_t currentBg = random(256);
 uint32_t nextBg = currentBg;
-//CRGBPalette16 currentPalette;
-//CRGBPalette16 targetPalette;
 TBlendType    currentBlending;
 
 //Variables will change:
 int buttonPushCounter = 0; // counter for the number of button presses
-//int buttonState = 0;         // current state of the button
 int lastButtonState = 0;
 
 byte peak = 16;      // Peak level of column; used for falling dots
-//    unsigned int sample;
-
 byte dotCount = 0;  //Frame counter for peak dot
 byte dotHangCount = 0; //Frame counter for holding peak dot
 
@@ -270,8 +265,7 @@ void setup() {
   }
 
   FastLED.show();
-  strip.begin();
-  //strip.show(); // all pixels to 'off'
+  strip.begin();  
 }
 
 void loop() { 
@@ -754,10 +748,7 @@ void VU2() {
     drawLine(N_PIXELS_HALF, N_PIXELS_HALF - c, strip.Color(0, 0, 0));
     drawLine(N_PIXELS_HALF, N_PIXELS_HALF + c, strip.Color(0, 0, 0));
   }
-
-
-
-
+  
   y = N_PIXELS_HALF - peak;
   uint32_t color1 = Wheel(map(y, 0, N_PIXELS_HALF - 1, 30, 150));
   strip.setPixelColor(y - 1, color1);
@@ -781,7 +772,6 @@ void VU2() {
     dotHangCount++;
   }
 }
-
 
 void VU3() {
   uint8_t i;
@@ -810,21 +800,15 @@ void VU3() {
     if (i >= height) {
       strip.setPixelColor(i, 0, 0, 0);
     } else {
-      strip.setPixelColor(i, Wheel(
-                            map(i, 0, strip.numPixels() - 1, (int)greenOffset, (int)blueOffset)
-                          ));
+      strip.setPixelColor(i, Wheel(map(i, 0, strip.numPixels() - 1, (int)greenOffset, (int)blueOffset)));
     }
   }
   // Draw peak dot
   if (peak > 0 && peak <= N_PIXELS - 1) strip.setPixelColor(peak, Wheel(map(peak, 0, strip.numPixels() - 1, 30, 150)));
-
-
   strip.show(); // Update strip
 
   // Every few frames, make the peak pixel drop by 1:
-
   if (++dotCount >= PEAK_FALL) { //fall rate
-
     if (peak > 0) peak--;
     dotCount = 0;
   }
@@ -2139,6 +2123,8 @@ void All2()
   }
 }
 
+//========================================================================================================================
+//==============================Added for testing purpose. 2 more ways to setup Auto mode.=============================
 void demo_modeB() {
   int r = 10;
   //one_color_all(0, 0, 0); FastLED.show();
