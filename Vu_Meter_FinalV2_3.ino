@@ -133,7 +133,7 @@ uint8_t thishue = 0;                                          // Starting hue.
 uint8_t curhue = 0;
 uint8_t thisbright = 255;                                     // How bright should the LED/display be.
 uint8_t basebeat = 5;
-uint8_t max_bright = 255;
+uint8_t max_bright = 100;
 
 // Twinkle
 float redStates[N_PIXELS];
