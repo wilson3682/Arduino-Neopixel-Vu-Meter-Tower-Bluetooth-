@@ -36,7 +36,7 @@
 
 #define BRIGHTNESS  35
 #define LED_TYPE    WS2812B     // Only use the LED_PIN for WS2812's
-#define COLOR_ORDER GRB        
+#define COLOR_ORDER RGB
 #define COLOR_MIN           0
 #define COLOR_MAX         255
 #define DRAW_MAX          100
@@ -46,9 +46,10 @@
 #define qsuba(x, b)  ((x>b)?x-b:0)                                              // Analog Unsigned subtraction macro. if result <0, then => 0. By Andrew Tuline.
 #define ARRAY_SIZE(A) (sizeof(A) / sizeof((A)[0]))
 
-const int buttonPin = 4;     // the number of the pushbutton pin
-
+//#define buttonPin 3
+const int buttonPin = 3;     // the number of the pushbutton pin
 //config for balls
+
 float h[NUM_BALLS] ;                         // An array of heights
 float vImpact0 = sqrt( -2 * GRAVITY * h0 );  // Impact velocity of the ball when it hits the ground if "dropped" from the top of the strip
 float vImpact[NUM_BALLS] ;                   // As time goes on the impact velocity will change, so make an array to store those values
@@ -59,7 +60,7 @@ float COR[NUM_BALLS] ;                       // Coefficient of Restitution (boun
 
 struct CRGB leds[N_PIXELS];
 
-Adafruit_NeoPixel strip = Adafruit_NeoPixel(N_PIXELS, LED_PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(N_PIXELS, LED_PIN, NEO_RGB + NEO_KHZ800);
 
 static uint16_t dist;         // A random number for noise generator.
 uint16_t scale = 30;          // Wouldn't recommend changing this on the fly, or the animation will be really blocky.
@@ -79,27 +80,28 @@ uint16_t oldsample = 0;                                                         
 bool thisdir = 0;
 
 // Modes
-enum{
+enum
+{
 } MODE;
-
 bool reverse = true;
 int BRIGHTNESS_MAX = 255;
 int brightness = 75;
 
-byte volCount  = 0;      // Frame counter for storing past volume data
-
+byte
+//  peak      = 0,      // Used for falling dot
+//  dotCount  = 0,      // Frame counter for delaying dot-falling speed
+volCount  = 0;      // Frame counter for storing past volume data
 int
 reading,
 vol[SAMPLES],       // Collection of prior volume samples
 lvl       = 10,      // Current "dampened" audio level
 minLvlAvg = 0,      // For dynamic adjustment of graph low & high
 maxLvlAvg = 512;
-
 float
 greenOffset = 30,
 blueOffset = 150;
-
 // cycle variables
+
 int CYCLE_MIN_MILLIS = 2;
 int CYCLE_MAX_MILLIS = 1000;
 int cycleMillis = 20;
@@ -108,7 +110,6 @@ long lastTime = 0;
 bool boring = true;
 bool gReverseDirection = false;
 int          myhue =   0;
-
 //VU ripple
 uint8_t colour;
 uint8_t myfade = 255;                                         // Starting brightness.
@@ -133,7 +134,7 @@ uint8_t thishue = 0;                                          // Starting hue.
 uint8_t curhue = 0;
 uint8_t thisbright = 255;                                     // How bright should the LED/display be.
 uint8_t basebeat = 5;
-uint8_t max_bright = 100;
+uint8_t max_bright = 40;
 
 // Twinkle
 float redStates[N_PIXELS];
@@ -160,6 +161,12 @@ int maxSteps = 16;
 float fadeRate = 0.80;
 int diff;
 
+//wave
+CRGB clr1;
+CRGB clr2;
+uint8_t speed;
+uint8_t loc1;
+
 //VU 8 variables
 int
 origin = 0,
@@ -177,13 +184,18 @@ fall_from_left = true;
 //background color
 uint32_t currentBg = random(256);
 uint32_t nextBg = currentBg;
+//CRGBPalette16 currentPalette;
+//CRGBPalette16 targetPalette;
 TBlendType    currentBlending;
 
 //Variables will change:
 int buttonPushCounter = 0; // counter for the number of button presses
+//int buttonState = 0;         // current state of the button
 int lastButtonState = 0;
 
 byte peak = 16;      // Peak level of column; used for falling dots
+//    unsigned int sample;
+
 byte dotCount = 0;  //Frame counter for peak dot
 byte dotHangCount = 0; //Frame counter for holding peak dot
 
@@ -252,6 +264,8 @@ void setup() {
   // btSerial.begin(9600);    // SETUP SOFTWARE SERIAL (BLUETOOTH)
   Serial1.begin(9600);    // SETUP SOFTWARE SERIAL (MEGA RX1 & TX1)
   pinMode(buttonPin, INPUT_PULLUP);
+  //pinMode(buttonPin, INPUT);
+  //digitalWrite(buttonPin, HIGH);
 
   FastLED.addLeds<LED_TYPE, LED_PIN, COLOR_ORDER>(leds, N_PIXELS).setCorrection(TypicalLEDStrip);
 
@@ -265,19 +279,22 @@ void setup() {
   }
 
   FastLED.show();
-  strip.begin();  
+  strip.begin();
+  //strip.show(); // all pixels to 'off'
 }
 
-void loop() { 
+void loop() {
   buttonLoop();
   while (Serial1.available() > 0) {
     //inbyte = Serial1.read();
     blue_data = Serial1.read();
-    blueTooth();     
+    blueTooth();
     switch (blue_data) {
+      //case 59: break; //---BREAK IF INBYTE = ';'
       case 98:      //---"b" - SET MAX BRIGHTNESS
         max_bright = Serial1.parseInt();
         FastLED.setBrightness(max_bright);
+        //delayMicroseconds(1000);
         break;
     }
   }
@@ -300,7 +317,7 @@ void buttonLoop() {
       Serial.println("on");
       Serial.print("number of button pushes:  ");
       Serial.println(buttonPushCounter);
-      if (buttonPushCounter == 30) {
+      if (buttonPushCounter == 32) {
         buttonPushCounter = 1;
       }
     }
@@ -458,6 +475,18 @@ void buttonLoop() {
       }
     case 29:
       buttonPushCounter == 29; {
+        Fireyell();        
+        break;
+      }
+
+    case 30:
+      buttonPushCounter == 30; {
+        wave();        
+        break;
+      }
+
+    case 31:
+      buttonPushCounter == 31; {
         colorWipe(strip.Color(0, 0, 0)); // Black
         break;
       }
@@ -552,6 +581,12 @@ void blueTooth() {
   if (blue_data == 38) {
     buttonPushCounter = 29;
   }
+  if (blue_data == 39) {
+    buttonPushCounter = 30;
+  }
+  if (blue_data == 40) {
+    buttonPushCounter = 31;
+  }
 }
 
 //========================================================================================================================================
@@ -634,20 +669,6 @@ void VU() {
   if ((maxLvl - minLvl) < TOP) maxLvl = minLvl + TOP;
   minLvlAvg = (minLvlAvg * 63 + minLvl) >> 6; // Dampen min/max levels
   maxLvlAvg = (maxLvlAvg * 63 + maxLvl) >> 6; // (fake rolling average)
-}
-
-// Input a value 0 to 255 to get a color value.
-// The colors are a transition r - g - b - back to r.
-uint32_t Wheel(byte WheelPos) {
-  if (WheelPos < 85) {
-    return strip.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
-  } else if (WheelPos < 170) {
-    WheelPos -= 85;
-    return strip.Color(255 - WheelPos * 3, 0, WheelPos * 3);
-  } else {
-    WheelPos -= 170;
-    return strip.Color(0, WheelPos * 3, 255 - WheelPos * 3);
-  }
 }
 
 void VU1() {
@@ -748,7 +769,7 @@ void VU2() {
     drawLine(N_PIXELS_HALF, N_PIXELS_HALF - c, strip.Color(0, 0, 0));
     drawLine(N_PIXELS_HALF, N_PIXELS_HALF + c, strip.Color(0, 0, 0));
   }
-  
+
   y = N_PIXELS_HALF - peak;
   uint32_t color1 = Wheel(map(y, 0, N_PIXELS_HALF - 1, 30, 150));
   strip.setPixelColor(y - 1, color1);
@@ -805,10 +826,14 @@ void VU3() {
   }
   // Draw peak dot
   if (peak > 0 && peak <= N_PIXELS - 1) strip.setPixelColor(peak, Wheel(map(peak, 0, strip.numPixels() - 1, 30, 150)));
+
+
   strip.show(); // Update strip
 
   // Every few frames, make the peak pixel drop by 1:
+
   if (++dotCount >= PEAK_FALL) { //fall rate
+
     if (peak > 0) peak--;
     dotCount = 0;
   }
@@ -877,7 +902,6 @@ void VU4() {
       strip.setPixelColor(N_PIXELS_HALF - i - 1, color);
       strip.setPixelColor(N_PIXELS_HALF + i, color);
     }
-
   }
 
   // Draw peak dot
@@ -898,7 +922,6 @@ void VU4() {
     dotCount = 0;
   }
 
-
   vol[volCount] = n;                      // Save sample for dynamic leveling
   if (++volCount >= SAMPLES) volCount = 0; // Advance/rollover sample counter
 
@@ -917,7 +940,6 @@ void VU4() {
   if ((maxLvl - minLvl) < TOP) maxLvl = minLvl + TOP;
   minLvlAvg = (minLvlAvg * 63 + minLvl) >> 6; // Dampen min/max levels
   maxLvlAvg = (maxLvlAvg * 63 + maxLvl) >> 6; // (fake rolling average)
-
 }
 
 void VU5()
@@ -925,7 +947,6 @@ void VU5()
   uint8_t  i;
   uint16_t minLvl, maxLvl;
   int      n, height;
-
   n   = analogRead(MIC_PIN);                        // Raw reading from mic
   n   = abs(n - 512 - DC_OFFSET); // Center on zero
   n   = (n <= NOISE) ? 0 : (n - NOISE);             // Remove noise/hum
@@ -937,7 +958,6 @@ void VU5()
   if (height < 0L)       height = 0;     // Clip output
   else if (height > TOP2) height = TOP2;
   if (height > peak)     peak   = height; // Keep 'peak' dot at top
-
 
 #ifdef CENTERED
   // Color pixels based on rainbow gradient
@@ -1034,7 +1054,6 @@ void VU6()
   else if (height > TOP2) height = TOP2;
   if (height > peak)     peak   = height; // Keep 'peak' dot at top
 
-
 #ifdef CENTERED
   // Draw peak dot
   if (peak > 0 && peak <= LAST_PIXEL_OFFSET)
@@ -1098,12 +1117,10 @@ void VU6()
 }
 
 void VU7() {
-
   EVERY_N_MILLISECONDS(1000) {
     peakspersec = peakcount;                                       // Count the peaks per second. This value will become the foreground hue.
     peakcount = 0;                                                 // Reset the counter every second.
   }
-
   soundmems();
 
   EVERY_N_MILLISECONDS(20) {
@@ -1112,8 +1129,7 @@ void VU7() {
 
   show_at_max_brightness_for_power();
 
-} // loop()
-
+} // VU7()
 
 void soundmems() {                                                  // Rolling average counter - means we don't have to go through an array each time.
   newtime = millis();
@@ -1137,37 +1153,29 @@ void soundmems() {                                                  // Rolling a
   }
 }  // soundmems()
 
-
-
 void ripple3() {
   for (int i = 0; i < N_PIXELS; i++) leds[i] = CHSV(bgcol, 255, sampleavg * 2); // Set the background colour.
-
   switch (step) {
-
     case -1:                                                          // Initialize ripple variables.
       center = random(N_PIXELS);
       colour = (peakspersec * 10) % 255;                                           // More peaks/s = higher the hue colour.
       step = 0;
       bgcol = bgcol + 8;
       break;
-
     case 0:
       leds[center] = CHSV(colour, 255, 255);                          // Display the first pixel of the ripple.
       step ++;
       break;
-
     case maxsteps:                                                    // At the end of the ripples.
       // step = -1;
       break;
-
     default:                                                             // Middle of the ripples.
       leds[(center + step + N_PIXELS) % N_PIXELS] += CHSV(colour, 255, myfade / step * 2);   // Simple wrap from Marc Miller.
       leds[(center - step + N_PIXELS) % N_PIXELS] += CHSV(colour, 255, myfade / step * 2);
       step ++;                                                         // Next step.
       break;
   } // switch step
-} // ripple()
-
+} // ripple3()
 
 void VU8() {
   int intensity = calculateIntensity();
@@ -1179,7 +1187,6 @@ void VU8() {
 
 int calculateIntensity() {
   int      intensity;
-
   reading   = analogRead(MIC_PIN);                        // Raw reading from mic
   reading   = abs(reading - 512 - DC_OFFSET); // Center on zero
   reading   = (reading <= NOISE) ? 0 : (reading - NOISE);             // Remove noise/hum
@@ -1382,53 +1389,39 @@ void VU10() {
   }
 } // loop()
 
-
-
 void soundtun() {
-
   int n;
   n = analogRead(MIC_PIN);                                    // Raw reading from mic
   n = qsuba(abs(n - 512), 10);                                // Center on zero and get rid of low level noise
   CRGB newcolour = ColorFromPalette(currentPalette, constrain(n, 0, 255), constrain(n, 0, 255), currentBlending);
   nblend(leds[0], newcolour, 128);
-
   for (int i = N_PIXELS - 1; i > 0; i--) {
     leds[i] = leds[i - 1];
   }
-
 } // soundmems()
 
 void VU11() {
-
   EVERY_N_MILLISECONDS(1000) {
     peakspersec = peakcount;                                  // Count the peaks per second. This value will become the foreground hue.
     peakcount = 0;                                            // Reset the counter every second.
   }
-
   soundrip();
-
   EVERY_N_MILLISECONDS(20) {
     rippled();
   }
-
   FastLED.show();
-
 } // loop()
 
-
 void soundrip() {                                            // Rolling average counter - means we don't have to go through an array each time.
-
   newtime = millis();
   int tmp = analogRead(MIC_PIN) - 512;
   sample = abs(tmp);
-
   int potin = map(analogRead(POT_PIN), 0, 1023, 0, 60);
 
   samplesum = samplesum + sample - samplearray[samplecount];  // Add the new sample and remove the oldest sample in the array
   sampleavg = samplesum / NSAMPLES;                           // Get an average
 
   //Serial.println(sampleavg);
-
 
   samplearray[samplecount] = sample;                          // Update oldest sample in the array with new sample
   samplecount = (samplecount + 1) % NSAMPLES;                 // Update the counter for the array
@@ -1443,38 +1436,28 @@ void soundrip() {                                            // Rolling average 
 
 }  // soundmems()
 
-
-
 void rippled() {
-
-  fadeToBlackBy(leds, N_PIXELS, 64);                          // 8 bit, 1 = slow, 255 = fast
-
+  fadeToBlackBy(leds, N_PIXELS, 64);                         // 8 bit, 1 = slow, 255 = fast
   switch (step) {
-
     case -1:                                                  // Initialize ripple variables.
       center = random(N_PIXELS);
       colour = (peakspersec * 10) % 255;                      // More peaks/s = higher the hue colour.
       step = 0;
       break;
-
     case 0:
       leds[center] = CHSV(colour, 255, 255);                  // Display the first pixel of the ripple.
       step ++;
       break;
-
     case maxsteps:                                            // At the end of the ripples.
       // step = -1;
       break;
-
     default:                                                  // Middle of the ripples.
       leds[(center + step + N_PIXELS) % N_PIXELS] += CHSV(colour, 255, myfade / step * 2);   // Simple wrap from Marc Miller.
       leds[(center - step + N_PIXELS) % N_PIXELS] += CHSV(colour, 255, myfade / step * 2);
       step ++;                                                // Next step.
       break;
   } // switch step
-
 } // ripple()
-
 
 //Used to draw a line between two points of a given color
 void drawLine(uint8_t from, uint8_t to, uint32_t c) {
@@ -1491,52 +1474,36 @@ void drawLine(uint8_t from, uint8_t to, uint32_t c) {
 
 void setPixel(int Pixel, byte red, byte green, byte blue) {
   strip.setPixelColor(Pixel, strip.Color(red, green, blue));
-
 }
 
-
 void setAll(byte red, byte green, byte blue) {
-
   for (int i = 0; i < N_PIXELS; i++ ) {
-
     setPixel(i, red, green, blue);
-
   }
   strip.setBrightness(max_bright);
   strip.show();
 
 }
 void VU12() {
-
   EVERY_N_MILLISECONDS(1000) {
     peakspersec = peakcount;                                  // Count the peaks per second. This value will become the foreground hue.
     peakcount = 0;                                            // Reset the counter every second.
   }
-
   soundripped();
-
   EVERY_N_MILLISECONDS(20) {
     rippVU();
   }
-
   FastLED.show();
-
 } // loop()
 
-
 void soundripped() {                                            // Rolling average counter - means we don't have to go through an array each time.
-
   newtime = millis();
   int tmp = analogRead(MIC_PIN) - 512;
   sample = abs(tmp);
-
   int potin = map(analogRead(POT_PIN), 0, 1023, 0, 60);
-
   samplesum = samplesum + sample - samplearray[samplecount];  // Add the new sample and remove the oldest sample in the array
   sampleavg = samplesum / NSAMPLES;                           // Get an average
-
   //Serial.println(sampleavg);
-
 
   samplearray[samplecount] = sample;                          // Update oldest sample in the array with new sample
   samplecount = (samplecount + 1) % NSAMPLES;                 // Update the counter for the array
@@ -1550,27 +1517,21 @@ void soundripped() {                                            // Rolling avera
   }
 
 }  // soundmems()
-void rippVU() {                                                                 // Display ripples triggered by peaks.
-
+void rippVU() {                                                                // Display ripples triggered by peaks.
   fadeToBlackBy(leds, N_PIXELS, 64);                          // 8 bit, 1 = slow, 255 = fast
-
   switch (step) {
-
     case -1:                                                  // Initialize ripple variables.
       center = random(N_PIXELS);
       colour = (peakspersec * 10) % 255;                      // More peaks/s = higher the hue colour.
       step = 0;
       break;
-
     case 0:
       leds[center] = CHSV(colour, 255, 255);                  // Display the first pixel of the ripple.
       step ++;
       break;
-
     case maxsteps:                                            // At the end of the ripples.
       // step = -1;
       break;
-
     default:                                                  // Middle of the ripples.
       leds[(center + step + N_PIXELS) % N_PIXELS] += CHSV(colour, 255, myfade / step * 2);   // Simple wrap from Marc Miller.
       leds[(center - step + N_PIXELS) % N_PIXELS] += CHSV(colour, 255, myfade / step * 2);
@@ -1580,46 +1541,31 @@ void rippVU() {                                                                 
   addGlitter(sampleavg);
 } // ripple()
 
-
-
 void VU13() {                                                                   // The >>>>>>>>>> L-O-O-P <<<<<<<<<<<<<<<<<<<<<<<<<<<<  is buried here!!!11!1!
-
-
   EVERY_N_MILLISECONDS(1000) {
     peakspersec = peakcount;                                  // Count the peaks per second. This value will become the foreground hue.
     peakcount = 0;                                            // Reset the counter every second.
   }
-
   soundripper();
-
   EVERY_N_MILLISECONDS(20) {
     jugglep();
   }
-
   FastLED.show();
-
 } // loop()
 
-
 void soundripper() {                                            // Rolling average counter - means we don't have to go through an array each time.
-
   newtime = millis();
   int tmp = analogRead(MIC_PIN) - 512;
   sample = abs(tmp);
-
   int potin = map(analogRead(POT_PIN), 0, 1023, 0, 60);
-
   samplesum = samplesum + sample - samplearray[samplecount];  // Add the new sample and remove the oldest sample in the array
   sampleavg = samplesum / NSAMPLES;                           // Get an average
-
   //Serial.println(sampleavg);
-
 
   samplearray[samplecount] = sample;                          // Update oldest sample in the array with new sample
   samplecount = (samplecount + 1) % NSAMPLES;                 // Update the counter for the array
 
   if (newtime > (oldtime + 200)) digitalWrite(13, LOW);       // Turn the LED off 200ms after the last peak.
-
   if ((sample > (sampleavg + potin)) && (newtime > (oldtime + 60)) ) { // Check for a peak, which is 30 > the average, but wait at least 60ms for another.
     step = -1;
     peakcount++;
@@ -1627,9 +1573,7 @@ void soundripper() {                                            // Rolling avera
     // Change the current pattern function periodically.
     jugglep();
   }
-
 } // loop()
-
 
 void jugglep() {                                                                // Use the juggle routine, but adjust the timebase based on sampleavg for some randomness.
 
@@ -1796,6 +1740,20 @@ void ripple2() {
   delay(50);
 }
 
+void wave() {
+  blendwave();
+  FastLED.show();
+} // loop()
+
+void blendwave() {
+  speed = beatsin8(6, 0, 255);
+  clr1 = blend(CHSV(beatsin8(3, 0, 255), 255, 255), CHSV(beatsin8(4, 0, 255), 255, 255), speed);
+  clr2 = blend(CHSV(beatsin8(4, 0, 255), 255, 255), CHSV(beatsin8(3, 0, 255), 255, 255), speed);
+  loc1 = beatsin8(10, 0, N_PIXELS - 1);
+  fill_gradient_RGB(leds, 0, clr2, loc1, clr1);
+  fill_gradient_RGB(leds, loc1, clr2, N_PIXELS - 1, clr1);
+} // blendwave()
+
 void fire() {
 #define FRAMES_PER_SECOND 40
   random16_add_entropy( random());
@@ -1878,6 +1836,57 @@ void fireblu() {
   FastLED.show();
 }
 
+void Fireyell()
+{
+  // Add entropy to random number generator; we use a lot of it.
+  random16_add_entropy( random());
+
+  Fire2014(); // run simulation frame
+
+  FastLED.show(); // display this frame
+  FastLED.delay(1000 / FRAMES_PER_SECOND);
+}
+
+#define COOLING  80
+#define SPARKING 120
+
+void Fire2014()
+{
+  // Array of temperature readings at each simulation cell
+  static byte heat[N_PIXELS];
+
+  // Step 1.  Cool down every cell a little
+  for ( int i = 0; i < N_PIXELS; i++) {
+    heat[i] = qsub8( heat[i],  random8(0, ((COOLING * 10) / N_PIXELS) + 2));
+  }
+
+  // Step 2.  Heat from each cell drifts 'up' and diffuses a little
+  for ( int k = N_PIXELS - 1; k >= 2; k--) {
+    heat[k] = (heat[k - 1] + heat[k - 2] + heat[k - 2] ) / 3;
+  }
+
+  // Step 3.  Randomly ignite new 'sparks' of heat near the bottom
+  if ( random8() < SPARKING ) {
+    int y = random8(7);
+    heat[y] = qadd8( heat[y], random8(100, 255) );
+  }
+
+  // Step 4.  Map from heat cells to LED colors
+  for ( int j = 0; j < N_PIXELS; j++) {
+    // Scale the heat value from 0-255 down to 0-240
+    // for best results with color palettes.
+    byte colorindex = scale8( heat[j], 240);
+    CRGB color = ColorFromPalette( CRGBPalette16( CRGB::Black, CRGB::Yellow, CRGB::Yellow,  CRGB::White), colorindex);
+    int pixelnumber;
+    if ( gReverseDirection ) {
+      pixelnumber = (N_PIXELS - 1) - j;
+    } else {
+      pixelnumber = j;
+    }
+    leds[pixelnumber] = color;
+  }
+}
+
 void Drip()
 {
 MODE_WATER_TORTURE:
@@ -1906,27 +1915,10 @@ bool cycle()
   return false;
 }
 
-// Input a value 0 to 255 to get a color value.
-// The colours are a transition r - g - b - back to r.
-uint32_t Wheel(byte WheelPos, float opacity) {
-  if (WheelPos < 85) {
-    return strip.Color((WheelPos * 3) * opacity, (255 - WheelPos * 3) * opacity, 0);
-  }
-  else if (WheelPos < 170) {
-    WheelPos -= 85;
-    return strip.Color((255 - WheelPos * 3) * opacity, 0, (WheelPos * 3) * opacity);
-  }
-  else {
-    WheelPos -= 170;
-    return strip.Color(0, (WheelPos * 3) * opacity, (255 - WheelPos * 3) * opacity);
-  }
-}
-
 void pattern2() {
   sinelon();                                                  // Call our sequence.
   show_at_max_brightness_for_power();                         // Power managed display of LED's.
 } // loop()
-
 
 void sinelon() {
   // a colored dot sweeping back and forth, with fading trails
@@ -2086,7 +2078,7 @@ void fill_rainbow2( struct CRGB * pFirstLED, int numToFill, uint8_t initialhue, 
 
 // List of patterns to cycle through.  Each is defined as a separate function below.
 typedef void (*SimplePatternList[])();
-SimplePatternList gPatterns = {ripple, ripple2, Twinkle, pattern2, juggle2, pattern3, blur, Balls, Drip, fireblu, fire, rainbow_rotate};
+SimplePatternList gPatterns = {ripple, ripple2, Twinkle, pattern2, juggle2, pattern3, blur, Balls, wave, Drip, fireblu, fire, Fireyell, rainbow_rotate};
 uint8_t gCurrentPatternNumber = 0; // Index number of which pattern is current
 
 void nextPattern()
@@ -2123,8 +2115,6 @@ void All2()
   }
 }
 
-//========================================================================================================================
-//==============================Added for testing purpose. 2 more ways to setup Auto mode.=============================
 void demo_modeB() {
   int r = 10;
   //one_color_all(0, 0, 0); FastLED.show();
@@ -2172,7 +2162,6 @@ void demo_modeB() {
 }
 
 void demo_modeC() {
-
   if (millis() - time_change > 12000) {   //code that establishes how often to change effect
     effect++;
     if (effect > 7) {
@@ -2180,35 +2169,28 @@ void demo_modeC() {
     }
     time_change = millis();
   }
-
   switch (effect) {
     case 0:
       ripple();
       break;
-
     case 1:
       if (millis() - time_pattern > 15) {
         ripple2();
         time_pattern = millis();
       }
-
       break;
-
     case 2:
       if (millis() - time_pattern > 15) {
         Twinkle();
         time_pattern = millis();
       }
       break;
-
     case 3:
       if (millis() - time_pattern > 15) {
         pattern2();
         time_pattern = millis();
       }
-
       break;
-
     case 4:
       if (millis() - time_pattern > 15) {
         juggle2();
@@ -2226,9 +2208,7 @@ void demo_modeC() {
         blur();
         time_pattern = millis();
       }
-
       break;
-
     case 7:
       if (millis() - time_pattern > 15) {
         Drip();
@@ -2242,5 +2222,36 @@ void demo_modeC() {
     case 9:
       fire();
       break;
+  }
+}
+
+
+// Input a value 0 to 255 to get a color value.
+// The colours are a transition r - g - b - back to r.
+uint32_t Wheel(byte WheelPos, float opacity) {
+  if (WheelPos < 85) {
+    return strip.Color((WheelPos * 3) * opacity, (255 - WheelPos * 3) * opacity, 0);
+  }
+  else if (WheelPos < 170) {
+    WheelPos -= 85;
+    return strip.Color((255 - WheelPos * 3) * opacity, 0, (WheelPos * 3) * opacity);
+  }
+  else {
+    WheelPos -= 170;
+    return strip.Color(0, (WheelPos * 3) * opacity, (255 - WheelPos * 3) * opacity);
+  }
+}
+
+// Input a value 0 to 255 to get a color value.
+// The colors are a transition r - g - b - back to r.
+uint32_t Wheel(byte WheelPos) {
+  if (WheelPos < 85) {
+    return strip.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
+  } else if (WheelPos < 170) {
+    WheelPos -= 85;
+    return strip.Color(255 - WheelPos * 3, 0, WheelPos * 3);
+  } else {
+    WheelPos -= 170;
+    return strip.Color(0, WheelPos * 3, 255 - WheelPos * 3);
   }
 }
