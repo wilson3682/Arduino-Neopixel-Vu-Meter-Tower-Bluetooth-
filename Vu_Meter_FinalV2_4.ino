@@ -1,3 +1,5 @@
+//This code has been udapted from CINE-LIGHTS Vu-meter Codes.
+//NOTE: Running on Arduino MEGA.
 
 #include <Adafruit_NeoPixel.h>
 #include <FastLED.h>
