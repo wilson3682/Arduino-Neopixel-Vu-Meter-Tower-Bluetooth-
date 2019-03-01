@@ -1,5 +1,8 @@
-//This code has been udapted from CINE-LIGHTS Vu-meter Codes.
+//This code has been updated from CINE-LIGHTS Vu-meter Codes.
 //NOTE: Running on Arduino MEGA.
+//The bluetooth is connected to RX1 & TX1 of the Arduino Mega
+//Microphone is connected to Analog port A0
+//Push button is connected to digital port 3
 
 #include <Adafruit_NeoPixel.h>
 #include <FastLED.h>
